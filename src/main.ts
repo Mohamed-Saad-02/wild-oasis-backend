@@ -9,7 +9,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:5173',
-      'https://wild-oasis-backend-qfx8.onrender.com',
+      'https://wild-oasis-v1.netlify.app',
       'http://localhost:3000',
     ],
     credentials: true,
