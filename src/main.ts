@@ -7,7 +7,11 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: ['http://localhost:5173'],
+    origin: [
+      'http://localhost:5173',
+      'https://wild-oasis-backend-qfx8.onrender.com',
+      'http://localhost:3000',
+    ],
     credentials: true,
   });
 
