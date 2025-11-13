@@ -5,11 +5,11 @@ import { CreateSettingDto } from './dto/create-setting.dto';
 import { UpdateSettingDto } from './dto/update-setting.dto';
 import { SettingsService } from './settings.service';
 
-@AuthCompose(UserRole.ADMIN)
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
+  @AuthCompose(UserRole.ADMIN)
   @Post()
   create(@Body() createSettingDto: CreateSettingDto) {
     return this.settingsService.create(createSettingDto);
@@ -20,6 +20,7 @@ export class SettingsController {
     return this.settingsService.findSetting();
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Put()
   update(@Body() updateSettingDto: UpdateSettingDto) {
     return this.settingsService.update(updateSettingDto);

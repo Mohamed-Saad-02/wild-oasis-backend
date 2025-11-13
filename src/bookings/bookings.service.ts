@@ -11,6 +11,9 @@ import {
   FindOptionsOrder,
   FindOptionsWhere,
   In,
+  MoreThanOrEqual,
+  Not,
+  Or,
   Repository,
 } from 'typeorm';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -164,6 +167,7 @@ export class BookingsService {
     };
   }
 
+  // find all bookings that are created after the booking date to today
   async findAllAfterBookingDate(date: string) {
     if (!date) {
       throw new BadRequestException('Date is required');
@@ -181,6 +185,7 @@ export class BookingsService {
     return bookings;
   }
 
+  // find all bookings that are checked in or checked out and have a start date or end date today
   async findAllRecentStays(date: string) {
     if (!date) {
       throw new BadRequestException('Date is required');
@@ -198,6 +203,7 @@ export class BookingsService {
     return bookings;
   }
 
+  // find all bookings that are unconfirmed or checked in and have a start date or end date today
   async findAllTodayActivity() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -223,6 +229,39 @@ export class BookingsService {
       });
 
     const bookings = await query.getMany();
+    return bookings;
+  }
+
+  // get all bookings for a cabin that are checked in or have a start date today
+  async getBookedDatesByCabinId(cabinId: number) {
+    let today: Date | string = new Date();
+    if (today instanceof Date) {
+      today.setHours(0, 0, 0, 0);
+      today = today.toISOString();
+    }
+
+    // Check if cabin exists
+    const cabin = await this.cabinsService.isExists(cabinId);
+    if (!cabin) throw new NotFoundException('Cabin not found');
+
+    // Get all bookings for the cabin that:
+    // (startDate >= today) OR (status = CHECKED_IN)
+    const bookings = await this.bookingRepository.find({
+      where: [
+        {
+          cabin: { id: cabinId },
+          startDate: MoreThanOrEqual(new Date(today)),
+        },
+        {
+          cabin: { id: cabinId },
+          status: BookingStatus.CHECKED_IN,
+        },
+      ],
+      select: {
+        startDate: true,
+        endDate: true,
+      },
+    });
     return bookings;
   }
 }

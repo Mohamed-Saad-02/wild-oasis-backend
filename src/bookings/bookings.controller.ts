@@ -16,21 +16,23 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingStatus } from './entities/booking.entity';
 
-@AuthCompose(UserRole.ADMIN)
 @Controller('bookings')
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
+  @AuthCompose(UserRole.ADMIN)
   @Post('bulk')
   createBulk(@Body() createBookingDto: CreateBookingDto[]) {
     return this.bookingsService.createBulk(createBookingDto);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Post()
   create(@Body() createBookingDto: CreateBookingDto) {
     return this.bookingsService.create(createBookingDto);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Get()
   findAll(
     @Query('page') page: number = 1,
@@ -51,31 +53,42 @@ export class BookingsController {
     });
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Get('after-date')
   findAllAfterDate(@Query('date') date: string) {
     return this.bookingsService.findAllAfterBookingDate(date);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Get('recent-stays')
   findAllRecentStays(@Query('date') date: string) {
     return this.bookingsService.findAllRecentStays(date);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Get('today-activity')
   findAllTodayActivity() {
     return this.bookingsService.findAllTodayActivity();
   }
 
+  @Get('booked-dates/:cabinId')
+  getBookedDatesByCabinId(@Param('cabinId', ParseIntPipe) cabinId: number) {
+    return this.bookingsService.getBookedDatesByCabinId(cabinId);
+  }
+
+  @AuthCompose(UserRole.ADMIN)
   @Delete()
   removeAll() {
     return this.bookingsService.removeAll();
   }
 
   @Get(':id')
+  @AuthCompose(UserRole.ADMIN)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.bookingsService.findOne(id);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -84,6 +97,7 @@ export class BookingsController {
     return this.bookingsService.update(id, updateBookingDto);
   }
 
+  @AuthCompose(UserRole.ADMIN)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.bookingsService.remove(id);
