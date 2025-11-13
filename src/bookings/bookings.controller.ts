@@ -26,7 +26,6 @@ export class BookingsController {
     return this.bookingsService.createBulk(createBookingDto);
   }
 
-  @AuthCompose(UserRole.ADMIN)
   @Post()
   create(@Body() createBookingDto: CreateBookingDto) {
     return this.bookingsService.create(createBookingDto);
