@@ -7,6 +7,7 @@ import { CreateCabinDto } from './dto/create-cabin.dto';
 import { UpdateCabinDto } from './dto/update-cabin.dto';
 import { CabinEntity } from './entities/cabin.entity';
 import { ConstantsService } from '@/common/constants';
+import { CabinDto } from './dto/cabin.dto';
 
 @Injectable()
 export class CabinsService {
@@ -45,19 +46,16 @@ export class CabinsService {
 
     const totalPages = Math.ceil(total / limit);
 
-    const transformedCabins = cabins.map((cabin) => this.transformCabin(cabin));
     return {
       metadata: { page, limit, total, totalPages },
-      data: transformedCabins,
+      data: plainToInstance(CabinDto, cabins),
     };
   }
 
   async findOne(id: number) {
     const cabin = await this.cabinRepository.findOne({ where: { id } });
-    if (!cabin) {
-      throw new NotFoundException('Cabin not found');
-    }
-    return this.transformCabin(cabin);
+    if (!cabin) throw new NotFoundException('Cabin not found');
+    return plainToInstance(CabinDto, cabin);
   }
 
   async update(
@@ -127,13 +125,6 @@ export class CabinsService {
     await this.cabinRepository.deleteAll();
     return {
       message,
-    };
-  }
-
-  transformCabin(cabin: CabinEntity) {
-    return {
-      ...cabin,
-      image: cabin.image.url,
     };
   }
 }

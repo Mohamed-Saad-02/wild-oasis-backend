@@ -1,4 +1,6 @@
+import { AuthCompose } from '@/common/decorator';
 import { UploadFileOptions } from '@/common/utils';
+import { UserRole } from '@/users/entities/user.entity';
 import {
   BadRequestException,
   Body,
@@ -11,23 +13,20 @@ import {
   Put,
   Query,
   UploadedFile,
-  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageAllowedTypes } from 'src/common/constants';
 import { CabinsService } from './cabins.service';
 import { CreateCabinDto } from './dto/create-cabin.dto';
 import { UpdateCabinDto } from './dto/update-cabin.dto';
-import { UserRole } from '@/users/entities/user.entity';
-import { AuthCompose } from '@/common/guards';
 
 @Controller('cabins')
 export class CabinsController {
   constructor(private readonly cabinsService: CabinsService) {}
 
-  @Post()
   @AuthCompose(UserRole.ADMIN)
+  @Post()
   @UseInterceptors(
     FileInterceptor(
       'image',

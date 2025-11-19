@@ -1,5 +1,5 @@
-import { AuthCompose } from '@/common/guards';
-import { UserRole } from '@/users/entities/user.entity';
+import { AuthCompose, CurrentUser } from '@/common/decorator';
+import { UserEntity, UserRole } from '@/users/entities/user.entity';
 import {
   Body,
   Controller,
@@ -20,15 +20,64 @@ import { BookingStatus } from './entities/booking.entity';
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
-  @AuthCompose(UserRole.ADMIN)
-  @Post('bulk')
-  createBulk(@Body() createBookingDto: CreateBookingDto[]) {
-    return this.bookingsService.createBulk(createBookingDto);
+  @AuthCompose(UserRole.GUEST)
+  @Post('me')
+  create(
+    @Body() createBookingDto: CreateBookingDto,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return this.bookingsService.create(createBookingDto, user.id);
   }
 
-  @Post()
-  create(@Body() createBookingDto: CreateBookingDto) {
-    return this.bookingsService.create(createBookingDto);
+  @AuthCompose(UserRole.GUEST)
+  @Get('me')
+  getMyBookings(
+    @CurrentUser() user: UserEntity,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('status')
+    status?: BookingStatus,
+    @Query('sortBy')
+    sortBy?: 'createdAt' | 'updatedAt' | 'startDate' | 'endDate' | 'totalPrice',
+    @Query('sortOrder')
+    sortOrder?: 'asc' | 'desc',
+  ) {
+    return this.bookingsService.findAll({
+      page,
+      limit,
+      status,
+      sortOrder,
+      sortBy,
+      userId: user.id,
+    });
+  }
+
+  @AuthCompose(UserRole.GUEST)
+  @Get('me/:id')
+  getMyBooking(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return this.bookingsService.getMyBooking(id, user);
+  }
+
+  @AuthCompose(UserRole.GUEST)
+  @Put('me/:id')
+  updateMyBooking(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateBookingDto: UpdateBookingDto,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return this.bookingsService.update(id, updateBookingDto, user);
+  }
+
+  @AuthCompose(UserRole.GUEST)
+  @Delete('me/:id')
+  removeMyBooking(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return this.bookingsService.remove(id, user);
   }
 
   @AuthCompose(UserRole.ADMIN)
@@ -75,25 +124,19 @@ export class BookingsController {
     return this.bookingsService.getBookedDatesByCabinId(cabinId);
   }
 
-  @AuthCompose(UserRole.ADMIN)
-  @Delete()
-  removeAll() {
-    return this.bookingsService.removeAll();
-  }
-
-  @Get(':id')
-  @AuthCompose(UserRole.ADMIN)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.bookingsService.findOne(id);
-  }
-
-  @AuthCompose(UserRole.ADMIN)
+  @AuthCompose(UserRole.GUEST)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBookingDto: UpdateBookingDto,
   ) {
     return this.bookingsService.update(id, updateBookingDto);
+  }
+
+  @Get(':id')
+  @AuthCompose(UserRole.ADMIN)
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.bookingsService.findOne(id);
   }
 
   @AuthCompose(UserRole.ADMIN)

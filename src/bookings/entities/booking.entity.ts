@@ -1,5 +1,5 @@
+import { UserEntity } from '@/users/entities/user.entity';
 import { CabinEntity } from 'src/cabins/entities/cabin.entity';
-import { GuestEntity } from 'src/guests/entities/guest.entity';
 import {
   Column,
   CreateDateColumn,
@@ -35,7 +35,7 @@ export class BookingEntity {
   @Column({ type: 'float4' })
   cabinPrice: number;
 
-  @Column({ type: 'float4' })
+  @Column({ type: 'float4', default: 0 })
   extrasPrice: number;
 
   @Column({ type: 'float4' })
@@ -62,10 +62,10 @@ export class BookingEntity {
   })
   cabin: CabinEntity;
 
-  @ManyToOne(() => GuestEntity, (guest) => guest.bookings, {
+  @ManyToOne(() => UserEntity, (user) => user.bookings, {
     onDelete: 'CASCADE',
   })
-  guest: GuestEntity;
+  user: UserEntity;
 
   @CreateDateColumn()
   createdAt: Date;

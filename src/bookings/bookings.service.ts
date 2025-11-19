@@ -1,24 +1,31 @@
 import { CabinsService } from '@/cabins/cabins.service';
-import { GuestsService } from '@/guests/guests.service';
+import { CabinDto } from '@/cabins/dto/cabin.dto';
+import { SettingsService } from '@/settings/settings.service';
+import { UsersService } from '@/users/users.service';
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { plainToInstance } from 'class-transformer';
 import {
   Between,
   FindOptionsOrder,
   FindOptionsWhere,
   In,
+  LessThan,
+  MoreThan,
   MoreThanOrEqual,
   Not,
-  Or,
   Repository,
 } from 'typeorm';
+import { BookingDto } from './dto/booking.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingEntity, BookingStatus } from './entities/booking.entity';
+import { UserEntity, UserRole } from '@/users/entities/user.entity';
 
 export interface FindAllBookingsDto {
   page: number;
@@ -26,6 +33,7 @@ export interface FindAllBookingsDto {
   status?: BookingStatus;
   sortOrder?: 'asc' | 'desc';
   sortBy?: 'createdAt' | 'updatedAt' | 'startDate' | 'endDate' | 'totalPrice';
+  userId?: number;
 }
 
 @Injectable()
@@ -34,42 +42,71 @@ export class BookingsService {
     @InjectRepository(BookingEntity)
     private readonly bookingRepository: Repository<BookingEntity>,
     private readonly cabinsService: CabinsService,
-    private readonly guestsService: GuestsService,
+    private readonly usersService: UsersService,
+    private readonly settingsService: SettingsService,
   ) {}
 
-  async createBulk(createBookingDto: CreateBookingDto[]) {
-    const bookings = createBookingDto.map((dto) => {
-      return this.bookingRepository.create({
-        ...dto,
-        cabin: { id: dto.cabinId },
-        guest: { id: dto.guestId },
-      });
+  async create(createBookingDto: CreateBookingDto, userId: number) {
+    const { cabinId, ...rest } = createBookingDto;
+
+    const cabin = await this.cabinsService.findOne(cabinId);
+    if (!cabin) throw new BadRequestException('Cabin does not exist');
+
+    const user = await this.usersService.isExists({ id: userId });
+    if (!user) throw new BadRequestException('User does not exist');
+
+    // calculate numNights
+    const numNights = Math.ceil(
+      (rest.endDate.getTime() - rest.startDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    const settings = await this.settingsService.findSetting();
+
+    if (numNights < settings.minBookingLength) {
+      throw new BadRequestException('Booking length is less than minimum');
+    }
+    if (numNights > settings.maxBookingLength) {
+      throw new BadRequestException('Booking length is greater than maximum');
+    }
+    if (rest.numGuests > settings.maxGuestsPerBooking) {
+      throw new BadRequestException('Number of guests exceeds maximum allowed');
+    }
+
+    // Check if cabin is already booked for the selected dates
+    const existingBooking = await this.bookingRepository.findOne({
+      where: {
+        cabin: { id: cabinId },
+        status: Not(BookingStatus.CHECKED_IN),
+        startDate: LessThan(rest.endDate),
+        endDate: MoreThan(rest.startDate),
+      },
     });
 
-    await this.bookingRepository.save(bookings);
+    if (existingBooking) {
+      throw new BadRequestException(
+        'Cabin is already booked for the selected dates',
+      );
+    }
 
-    return {
-      message: 'Bookings created successfully',
-    };
-  }
-
-  async create(createBookingDto: CreateBookingDto) {
-    const { cabinId, guestId, ...rest } = createBookingDto;
-
-    const cabin = await this.cabinsService.isExists(cabinId);
-    if (!cabin) throw new BadRequestException('Cabin does not exist');
-    const guest = await this.guestsService.isExists(guestId);
-    if (!guest) throw new BadRequestException('Guest does not exist');
+    // calculate prices
+    const breakfastPrice = rest.hasBreakfast ? settings.breakfastPrice : 0;
+    const cabinPrice = numNights * (cabin.regularPrice - cabin.discount);
+    const extrasPrice = breakfastPrice * rest.numGuests * numNights;
 
     const booking = this.bookingRepository.create({
       ...rest,
+      cabinPrice,
+      extrasPrice,
+      totalPrice: cabinPrice + extrasPrice,
+      numNights,
       cabin: { id: cabinId },
-      guest: { id: guestId },
+      user: { id: userId },
     });
+
     await this.bookingRepository.save(booking);
-    return {
-      message: 'Booking created successfully',
-    };
+
+    return { message: 'Booking created successfully' };
   }
 
   async findAll({
@@ -78,11 +115,16 @@ export class BookingsService {
     status,
     sortOrder,
     sortBy,
+    userId,
   }: FindAllBookingsDto) {
     const where: FindOptionsWhere<BookingEntity> = {};
 
     if (status) {
       where.status = status;
+    }
+
+    if (userId) {
+      where.user = { id: userId };
     }
 
     const order: FindOptionsOrder<BookingEntity> = {};
@@ -107,22 +149,29 @@ export class BookingsService {
         createdAt: true,
         updatedAt: true,
         cabin: {
+          id: true,
           name: true,
+          discount: true,
+          image: true,
         },
-        guest: {
-          fullName: true,
-          email: true,
+        user: {
+          id: true,
+          // fullName: true,
+          // email: true,
         },
       },
       relations: {
         cabin: true,
-        guest: true,
+        user: true,
       },
     });
 
     const totalPages = Math.ceil(total / limit);
 
-    return { metadata: { page, limit, total, totalPages }, data: bookings };
+    return {
+      metadata: { page, limit, total, totalPages },
+      data: plainToInstance(BookingDto, bookings),
+    };
   }
 
   async findOne(id: number) {
@@ -130,40 +179,57 @@ export class BookingsService {
       where: { id },
       relations: {
         cabin: true,
-        guest: true,
+        user: true,
       },
     });
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
 
-    const transformedCabin = this.cabinsService.transformCabin(booking.cabin);
-
-    return { ...booking, cabin: transformedCabin };
+    return { ...booking, cabin: plainToInstance(CabinDto, booking.cabin) };
   }
 
-  async update(id: number, updateBookingDto: UpdateBookingDto) {
-    const booking = await this.bookingRepository.findOne({ where: { id } });
+  async update(
+    id: number,
+    updateBookingDto: UpdateBookingDto,
+    user?: UserEntity | null,
+  ) {
+    const where: FindOptionsWhere<BookingEntity> = { id };
+    if (user && user.role === UserRole.GUEST) {
+      where.user = { id: user.id };
+    }
+
+    const booking = await this.bookingRepository.findOne({
+      where,
+      relations: { user: true },
+    });
     if (!booking) throw new NotFoundException('Booking not found');
+
     await this.bookingRepository.update(id, updateBookingDto);
     return {
       message: 'Booking updated successfully',
     };
   }
 
-  async remove(id: number) {
-    const booking = await this.bookingRepository.findOne({ where: { id } });
+  async remove(id: number, user?: UserEntity | null) {
+    const where: FindOptionsWhere<BookingEntity> = { id };
+    if (user && user.role === UserRole.GUEST) {
+      where.user = { id: user.id };
+    }
+
+    const booking = await this.bookingRepository.findOne({
+      where,
+      relations: { user: true },
+    });
     if (!booking) throw new NotFoundException('Booking not found');
+    if (user && user.role !== UserRole.ADMIN && booking.user.id !== user.id) {
+      throw new ForbiddenException(
+        'You are not authorized to delete this booking',
+      );
+    }
     await this.bookingRepository.delete(id);
     return {
       message: 'Booking deleted successfully',
-    };
-  }
-
-  async removeAll() {
-    await this.bookingRepository.deleteAll();
-    return {
-      message: 'All bookings deleted successfully',
     };
   }
 
@@ -213,7 +279,7 @@ export class BookingsService {
 
     const query = this.bookingRepository
       .createQueryBuilder('booking')
-      .leftJoinAndSelect('booking.guest', 'guest')
+      .leftJoinAndSelect('booking.user', 'user')
       .where(
         `(booking.status = :unconfirmed AND booking.startDate >= :today AND booking.startDate < :tomorrow)`,
       )
@@ -263,5 +329,26 @@ export class BookingsService {
       },
     });
     return bookings;
+  }
+
+  async getMyBooking(id: number, user: UserEntity) {
+    const booking = await this.bookingRepository.findOne({
+      where: { id, user: { id: user.id } },
+      relations: {
+        cabin: true,
+        user: true,
+      },
+      select: {
+        id: true,
+        observations: true,
+        numGuests: true,
+        cabin: {
+          id: true,
+          maxCapacity: true,
+        },
+      },
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    return plainToInstance(BookingDto, booking);
   }
 }

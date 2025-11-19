@@ -11,6 +11,16 @@ export class UserDto {
   @Expose()
   role: UserRole;
   @Expose()
-  @Transform(({ value }) => value?.url)
+  @Transform(({ value }) => (value instanceof Object ? value?.url : value))
   avatar?: string;
+  @Expose()
+  nationality: string;
+  @Expose()
+  countryFlag: string;
+  @Expose()
+  nationalID: string;
+  @Expose()
+  createdAt: Date;
+  @Expose()
+  updatedAt: Date;
 }

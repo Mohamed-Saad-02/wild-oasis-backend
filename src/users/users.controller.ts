@@ -1,14 +1,17 @@
 import { ImageAllowedTypes } from '@/common/constants';
-import { AuthCompose } from '@/common/guards';
+import { AuthCompose, CurrentUser } from '@/common/decorator';
 import { UploadFileOptions } from '@/common/utils';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Put,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -32,10 +35,17 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
-  @Get()
   @AuthCompose(UserRole.ADMIN)
-  findAll() {
-    return this.usersService.findAll();
+  @Get()
+  findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 20) {
+    return this.usersService.findAll({ page, limit });
+  }
+
+  @Get('email/:email')
+  findOneByEmail(@Param('email') email: string) {
+    if (!email) throw new BadRequestException('Email is required');
+
+    return this.usersService.findOneByEmail(email);
   }
 
   @AuthCompose()
@@ -46,8 +56,8 @@ export class UsersController {
     });
   }
 
-  @Put('me')
   @AuthCompose()
+  @Put('me')
   @UseInterceptors(
     FileInterceptor(
       'avatar',
@@ -55,11 +65,17 @@ export class UsersController {
     ),
   )
   updateMe(
-    @Req() req: Request & { user: UserEntity },
     @Body() updateUserDto: UpdateUserMeDto,
+    @CurrentUser() user: UserEntity,
     @UploadedFile() avatar?: Express.Multer.File,
   ) {
-    return this.usersService.updateMe(req.user.id, updateUserDto, avatar);
+    return this.usersService.updateMe(user.id, updateUserDto, avatar);
+  }
+
+  @AuthCompose()
+  @Delete('me')
+  deleteMe(@CurrentUser() user: UserEntity) {
+    return this.usersService.deleteUser(user);
   }
 
   @AuthCompose(UserRole.ADMIN)
@@ -70,7 +86,10 @@ export class UsersController {
 
   @AuthCompose(UserRole.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return this.usersService.remove(id, user);
   }
 }

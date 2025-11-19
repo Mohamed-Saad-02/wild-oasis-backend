@@ -1,4 +1,4 @@
-import { AuthCompose } from '@/common/guards';
+import { AuthCompose } from '@/common/decorator';
 import { UserRole } from '@/users/entities/user.entity';
 import { Body, Controller, Get, Post, Put } from '@nestjs/common';
 import { CreateSettingDto } from './dto/create-setting.dto';

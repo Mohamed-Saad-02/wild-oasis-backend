@@ -1,14 +1,21 @@
+import { BookingEntity } from '@/bookings/entities/booking.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 export enum UserRole {
   ADMIN = 'admin',
-  USER = 'user',
+  GUEST = 'guest',
+}
+
+export enum UserProvider {
+  CREDENTIALS = 'credentials',
+  GOOGLE = 'google',
 }
 
 @Entity('users')
@@ -22,11 +29,27 @@ export class UserEntity {
   @Column({ type: 'text', nullable: false })
   email: string;
 
-  @Column({ type: 'text', nullable: false })
-  password: string;
+  @Column({ type: 'text', nullable: true })
+  password?: string;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  @Column({ type: 'text', nullable: true })
+  nationalID?: string;
+
+  @Column({ type: 'text', nullable: true })
+  nationality?: string;
+
+  @Column({ type: 'text', nullable: true })
+  countryFlag?: string;
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.GUEST })
   role: UserRole;
+
+  @Column({
+    type: 'enum',
+    enum: UserProvider,
+    default: UserProvider.CREDENTIALS,
+  })
+  provider: UserProvider;
 
   @Column({ type: 'jsonb', nullable: true })
   avatar?: { url: string; public_id: string };
@@ -36,4 +59,7 @@ export class UserEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => BookingEntity, (booking) => booking.user)
+  bookings: BookingEntity[];
 }
